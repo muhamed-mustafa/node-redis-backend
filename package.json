@@ -1,0 +1,28 @@
+{
+  "name": "node-redis-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file .env src/index.ts",
+    "build": "tsx",
+    "start": "node --env-file .env dist/src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "exppress": "0.0.1-security",
+    "http-status-codes": "^2.3.0",
+    "nanoid": "^5.1.5",
+    "redis": "^5.5.6",
+    "zod": "^3.25.56"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^22.15.30",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
