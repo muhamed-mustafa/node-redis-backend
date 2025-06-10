@@ -2,23 +2,35 @@ import type { Request, Response } from "express";
 import { initializeRedisClient } from "../utils/client.js";
 import { nanoid } from "nanoid";
 import {
+  cuisineKey,
+  cuisinesKey,
   restaurantKeyById,
   reviewDetailsKeyById,
   reviewKeyById,
+  restaurantKeyIdByCuisine,
 } from "../utils/keys.js";
 import ApiResponse from "../utils/responses.js";
 import type { Review } from "../schemas/review.schema.js";
 import { StatusCodes } from "http-status-codes";
 class RestaurantsController {
   static async create(req: Request, res: Response) {
-    const { name, location } = req.body;
+    const { name, location, cuisines } = req.body;
 
     const client = await initializeRedisClient();
     const id = nanoid(5);
     const restaurantKey = restaurantKeyById(id);
     const hashData = { id, name, location };
 
-    const result = await client.hSet(restaurantKey, hashData);
+    await Promise.all([
+      ...cuisines.map((cuisine: string) => {
+        return Promise.all([
+          client.sAdd(cuisinesKey, cuisine),
+          client.sAdd(cuisineKey(cuisine), id),
+          client.sAdd(restaurantKeyIdByCuisine(id), cuisine),
+        ]);
+      }),
+      client.hSet(restaurantKey, hashData),
+    ]);
 
     new ApiResponse(res).success(hashData, "Restaurant created successfully");
   }
@@ -30,13 +42,14 @@ class RestaurantsController {
 
     const restaurantKey = restaurantKeyById(restaurantId!);
 
-    const [viewCount, restaurant] = await Promise.all([
+    const [viewCount, restaurant, cuisines] = await Promise.all([
       client.hIncrBy(restaurantKey, "viewCount", 1),
       client.hmGet(restaurantKey, ["id", "name"]),
+      client.SMEMBERS(restaurantKeyIdByCuisine(restaurantId!)),
     ]);
 
     new ApiResponse(res).success(
-      { ...restaurant, viewCount },
+      { ...restaurant, viewCount, cuisines },
       "Restaurant details"
     );
   }
@@ -115,6 +128,8 @@ class RestaurantsController {
 
     new ApiResponse(res).success(reviewId, "Review deleted successfully");
   }
+
+
 }
 
 export default RestaurantsController;

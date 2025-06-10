@@ -1,6 +1,7 @@
 import express from "express";
 import { errorHandler } from "./middlewares/errorHandler.middleware.js";
 import { RestaurantsRoutes } from "./routes/restaurants.routes.js";
+import { CuisinesRoutes } from "./routes/cuisines.routes.js";
 
 class Application {
   app: express.Application;
@@ -17,6 +18,7 @@ class Application {
   routes() {
     this.app.use(errorHandler);
     this.app.use("/api/restaurants", RestaurantsRoutes.routes());
+    this.app.use("/api/cuisines", CuisinesRoutes.routes());
   }
   start() {
     const PORT = process.env.PORT || 3000;
