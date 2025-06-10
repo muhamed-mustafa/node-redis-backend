@@ -8,6 +8,7 @@ import {
   reviewDetailsKeyById,
   reviewKeyById,
   restaurantKeyIdByCuisine,
+  restaurantsByRatingKey,
 } from "../utils/keys.js";
 import ApiResponse from "../utils/responses.js";
 import type { Review } from "../schemas/review.schema.js";
@@ -27,6 +28,10 @@ class RestaurantsController {
           client.sAdd(cuisinesKey, cuisine),
           client.sAdd(cuisineKey(cuisine), id),
           client.sAdd(restaurantKeyIdByCuisine(id), cuisine),
+          client.zAdd(restaurantsByRatingKey, {
+            score: 0,
+            value: id,
+          }),
         ]);
       }),
       client.hSet(restaurantKey, hashData),
@@ -74,11 +79,31 @@ class RestaurantsController {
       restaurantId,
     };
 
-    await Promise.all([
+    const [reviewCount, _, totalStars] = await Promise.all([
       client.lPush(reviewKey, reviewId),
       client.hSet(reviewDetailsKey, reviewData),
+      client.hIncrByFloat(
+        restaurantKeyById(restaurantId),
+        "totalStars",
+        data.rating
+      ),
     ]);
 
+    const averageRating = Number(
+      (Number(totalStars) / Number(reviewCount)).toFixed(1)
+    );
+
+    await Promise.all([
+      client.hSet(
+        restaurantKeyById(restaurantId),
+        "averageRating",
+        averageRating
+      ),
+      client.zAdd(restaurantsByRatingKey, {
+        score: averageRating,
+        value: restaurantId,
+      }),
+    ]);
     new ApiResponse(res).success(reviewData, "Review added successfully");
   }
 
@@ -129,7 +154,30 @@ class RestaurantsController {
     new ApiResponse(res).success(reviewId, "Review deleted successfully");
   }
 
+  static async getRestaurantsByRating(req: Request, res: Response) {
+    const client = await initializeRedisClient();
 
+    const { page = 1, limit = 10 } = req.query;
+    const start = (Number(page) - 1) * Number(limit);
+    const end = start + Number(limit) - 1;
+
+    const restaurantsIds = await client.zRange(
+      restaurantsByRatingKey,
+      start,
+      end,
+      {
+        REV: true,
+      }
+    );
+
+    const restaurants = await Promise.all(
+      restaurantsIds.map(async (id) =>
+        client.hGet(restaurantKeyById(id), "name")
+      )
+    );
+
+    new ApiResponse(res).success(restaurants, "Restaurants by rating");
+  }
 }
 
 export default RestaurantsController;

@@ -10,6 +10,8 @@ export class RestaurantsRoutes {
 
     router.post("/", validate(RestaurantSchema), RestaurantsController.create);
 
+    router.get("/ratings", RestaurantsController.getRestaurantsByRating);
+
     router.get(
       "/:restaurantId",
       checkRestaurantIdExists,
