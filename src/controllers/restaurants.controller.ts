@@ -9,16 +9,32 @@ import {
   reviewKeyById,
   restaurantKeyIdByCuisine,
   restaurantsByRatingKey,
+  weatherKeyById,
+  restaurantDetailsKeyById,
+  indexKey,
+  bloomKey,
 } from "../utils/keys.js";
 import ApiResponse from "../utils/responses.js";
 import type { Review } from "../schemas/review.schema.js";
 import { StatusCodes } from "http-status-codes";
+import type { RestaurantDetails } from "../schemas/restaurant.schema.js";
+
 class RestaurantsController {
   static async create(req: Request, res: Response) {
     const { name, location, cuisines } = req.body;
 
     const client = await initializeRedisClient();
     const id = nanoid(5);
+    const bloomString = `${name}:${location}`;
+    const isExists = await client.bf.exists(bloomKey, bloomString);
+
+    if (isExists) {
+      new ApiResponse(res).error(
+        StatusCodes.CONFLICT,
+        "Restaurant already exists"
+      );
+      return;
+    }
     const restaurantKey = restaurantKeyById(id);
     const hashData = { id, name, location };
 
@@ -35,6 +51,7 @@ class RestaurantsController {
         ]);
       }),
       client.hSet(restaurantKey, hashData),
+      client.bf.add(bloomKey, bloomString),
     ]);
 
     new ApiResponse(res).success(hashData, "Restaurant created successfully");
@@ -177,6 +194,89 @@ class RestaurantsController {
     );
 
     new ApiResponse(res).success(restaurants, "Restaurants by rating");
+  }
+
+  static async getRestaurantWeather(
+    req: Request<{ restaurantId: string }>,
+    res: Response
+  ) {
+    const { restaurantId } = req.params;
+
+    const client = await initializeRedisClient();
+    const weatherKey = weatherKeyById(restaurantId);
+    const cachedWeather = await client.get(weatherKey);
+
+    if (cachedWeather) {
+      new ApiResponse(res).success(JSON.parse(cachedWeather), "Weather data");
+      return;
+    }
+
+    const coordinates = await client.hGet(
+      restaurantKeyById(restaurantId),
+      "location"
+    );
+
+    if (!coordinates) {
+      new ApiResponse(res).error(StatusCodes.NOT_FOUND, "Restaurant not found");
+      return;
+    }
+
+    console.log(coordinates);
+
+    const [lat, lng] = coordinates.split(",");
+    const apiResponse = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?units=imperial&lat=${lat}&lon=${lng}&appid=${process.env.WEATHER_API_KEY}`
+    );
+
+    console.log(apiResponse);
+
+    if (apiResponse.status === StatusCodes.OK) {
+      const weatherData = await apiResponse.json();
+      await client.setEx(weatherKey, 3600, JSON.stringify(weatherData));
+      new ApiResponse(res).success(weatherData, "Weather data");
+    }
+  }
+
+  static async addRestaurantDetails(
+    req: Request<{ restaurantId: string }>,
+    res: Response
+  ) {
+    const { restaurantId } = req.params;
+
+    const client = await initializeRedisClient();
+
+    const data = req.body as RestaurantDetails;
+
+    const restaurantDetailsKey = restaurantDetailsKeyById(restaurantId);
+
+    await client.json.set(restaurantDetailsKey, ".", data);
+
+    new ApiResponse(res).success(data, "Restaurant details added successfully");
+  }
+
+  static async getRestaurantDetails(
+    req: Request<{ restaurantId: string }>,
+    res: Response
+  ) {
+    const { restaurantId } = req.params;
+
+    const client = await initializeRedisClient();
+
+    const restaurantDetailsKey = restaurantDetailsKeyById(restaurantId);
+
+    const data = await client.json.get(restaurantDetailsKey);
+
+    new ApiResponse(res).success(data, "Restaurant details");
+  }
+
+  static async search(req: Request, res: Response) {
+    const client = await initializeRedisClient();
+
+    const { q = "" } = req.query;
+
+    const searchResults = await client.ft.search(indexKey, `@name:*${q}*`);
+
+    new ApiResponse(res).success(searchResults, "Search results");
   }
 }
 

@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file .env src/index.ts",
-    "build": "tsx",
-    "start": "node --env-file .env dist/src/index.js"
+    "build": "tsc",
+    "start": "node --env-file .env dist/index.js"
   },
   "keywords": [],
   "author": "",
@@ -17,7 +17,7 @@
     "express": "^5.1.0",
     "http-status-codes": "^2.3.0",
     "nanoid": "^5.1.5",
-    "redis": "^5.5.6",
+    "redis": "^4.7.0",
     "zod": "^3.25.56"
   },
   "devDependencies": {

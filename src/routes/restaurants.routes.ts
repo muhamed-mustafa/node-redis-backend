@@ -1,7 +1,10 @@
 import express from "express";
 import RestaurantsController from "../controllers/restaurants.controller.js";
 import { validate } from "../middlewares/validate.middleware.js";
-import { RestaurantSchema } from "../schemas/restaurant.schema.js";
+import {
+  RestaurantDetailsSchema,
+  RestaurantSchema,
+} from "../schemas/restaurant.schema.js";
 import { checkRestaurantIdExists } from "../middlewares/checkRestaurantId.middleware.js";
 import { ReviewSchema } from "../schemas/review.schema.js";
 export class RestaurantsRoutes {
@@ -11,6 +14,8 @@ export class RestaurantsRoutes {
     router.post("/", validate(RestaurantSchema), RestaurantsController.create);
 
     router.get("/ratings", RestaurantsController.getRestaurantsByRating);
+
+    router.get("/search", RestaurantsController.search);
 
     router.get(
       "/:restaurantId",
@@ -35,6 +40,25 @@ export class RestaurantsRoutes {
       "/:restaurantId/reviews/:reviewId",
       checkRestaurantIdExists,
       RestaurantsController.deleteReview
+    );
+
+    router.get(
+      "/:restaurantId/weather",
+      checkRestaurantIdExists,
+      RestaurantsController.getRestaurantWeather
+    );
+
+    router.post(
+      "/:restaurantId/details",
+      checkRestaurantIdExists,
+      validate(RestaurantDetailsSchema),
+      RestaurantsController.addRestaurantDetails
+    );
+
+    router.get(
+      "/:restaurantId/details",
+      checkRestaurantIdExists,
+      RestaurantsController.getRestaurantDetails
     );
 
     return router;
